@@ -1,0 +1,210 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Administrator_Guide.html</title>
+    <style>
+        body { font-family: Calibri, Arial, sans-serif; margin: 40px; line-height: 1.5; }
+        h1 { font-size: 24pt; color: #1a5276; }
+        h2 { font-size: 18pt; color: #2874a6; }
+        h3 { font-size: 14pt; color: #3498db; }
+        pre { background-color: #f5f5f5; padding: 10px; border-radius: 5px; }
+        code { font-family: Consolas, monospace; }
+        table { border-collapse: collapse; width: 100%; }
+        table, th, td { border: 1px solid #ddd; padding: 8px; }
+        th { background-color: #f2f2f2; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .header { border-bottom: 1px solid #ddd; margin-bottom: 20px; padding-bottom: 10px; }
+        .footer { border-top: 1px solid #ddd; margin-top: 20px; padding-top: 10px; text-align: center; font-size: 0.8em; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Blockchain-Based Electoral Management System</h1>
+            <p>Independent Electoral and Boundaries Commission of Kenya</p>
+        </div>
+        
+        <div class="content">
+<h1>Administrator Guide</h1>
+<h2>Blockchain-Based Electoral Management System</h2>
+
+<p>This comprehensive guide provides detailed instructions for election administrators managing the BBEMS developed for the Independent Electoral and Boundaries Commission of Kenya.</p>
+
+<h2>Table of Contents</h2>
+<ol>
+<li><a href="#system-overview">System Overview</a></li>
+<li><a href="#administrator-roles">Administrator Roles</a></li>
+<li><a href="#system-setup">System Setup</a></li>
+<li><a href="#pre-election-configuration">Pre-Election Configuration</a></li>
+<li><a href="#election-day-operations">Election Day Operations</a></li>
+<li><a href="#post-election-procedures">Post-Election Procedures</a></li>
+<li><a href="#security-protocols">Security Protocols</a></li>
+<li><a href="#troubleshooting">Troubleshooting</a></li>
+<li><a href="#support-resources">Support Resources</a></li>
+</ol>
+
+<h2 id="system-overview">System Overview</h2>
+
+<p>The BBEMS is a secure, transparent electoral management system built on blockchain technology to ensure the integrity of Kenya's electoral processes. The system:</p>
+
+<ul>
+<li>Authenticates voters via National ID and multi-factor authentication</li>
+<li>Records votes as immutable transactions on a private Ethereum-based blockchain</li>
+<li>Provides real-time monitoring and reporting capabilities</li>
+<li>Allows for transparent tallying and result verification</li>
+<li>Maintains voter privacy while ensuring verifiability</li>
+</ul>
+
+<h2 id="administrator-roles">Administrator Roles</h2>
+
+<p>The system supports several administrative roles with different access levels:</p>
+
+<table>
+<thead>
+<tr>
+<th>Role</th>
+<th>Access Level</th>
+<th>Responsibilities</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>System Administrator</td>
+<td>Full system access</td>
+<td>System configuration, user management, security protocols</td>
+</tr>
+<tr>
+<td>Election Administrator</td>
+<td>Election configuration</td>
+<td>Setting up elections, candidate management, constituency setup</td>
+</tr>
+<tr>
+<td>Polling Station Administrator</td>
+<td>Station-level access</td>
+<td>Voter verification, local system management, support</td>
+</tr>
+<tr>
+<td>Auditor</td>
+<td>Read-only access</td>
+<td>System monitoring, transaction verification, compliance checks</td>
+</tr>
+<tr>
+<td>Technical Support</td>
+<td>Tiered access</td>
+<td>Issue resolution, system maintenance</td>
+</tr>
+</tbody>
+</table>
+
+<h2 id="system-setup">System Setup</h2>
+
+<h3>Hardware Requirements</h3>
+<ul>
+<li><strong>Server Infrastructure</strong>:
+  <ul>
+  <li>Application Servers: Minimum 8-core CPU, 32GB RAM, 1TB SSD</li>
+  <li>Database Servers: Minimum 16-core CPU, 64GB RAM, 2TB SSD in RAID configuration</li>
+  <li>Blockchain Nodes: Minimum 8-core CPU, 16GB RAM, 500GB SSD</li>
+  <li>Load Balancers: Dual redundant configuration</li>
+  </ul>
+</li>
+<li><strong>Network Requirements</strong>:
+  <ul>
+  <li>Primary Fiber Connection: 100Mbps minimum dedicated line</li>
+  <li>Backup Connection: Secondary provider with automatic failover</li>
+  <li>VPN Infrastructure: For secure administrative access</li>
+  </ul>
+</li>
+<li><strong>Polling Station Equipment</strong>:
+  <ul>
+  <li>Verification Terminals: Core i5 or better, 8GB RAM, 256GB SSD</li>
+  <li>Backup Power: UPS with minimum 4-hour runtime</li>
+  <li>Network Equipment: 4G LTE backup connection</li>
+  </ul>
+</li>
+</ul>
+
+<h3>Software Installation</h3>
+
+<ol>
+<li><strong>Core System Installation</strong>:
+<pre><code># Clone the repository
+git clone https://github.com/iebc/blockchain-voting-system.git
+
+# Install dependencies
+cd blockchain-voting-system
+npm install
+
+# Configure environment
+cp .env.example .env
+# Edit the .env file with your configuration
+
+# Initialize the database
+npm run init-db
+
+# Deploy smart contracts to the blockchain network
+npm run deploy-contracts</code></pre>
+</li>
+<li><strong>Network Configuration</strong>:
+  <ul>
+  <li>Configure the private blockchain network</li>
+  <li>Set up validator nodes in multiple secure locations</li>
+  <li>Configure consensus parameters for optimal security and performance</li>
+  <li>Set up monitoring tools for network health</li>
+  </ul>
+</li>
+<li><strong>Security Setup</strong>:
+  <ul>
+  <li>Install and configure firewalls</li>
+  <li>Set up intrusion detection/prevention systems</li>
+  <li>Configure SSL/TLS for all web interfaces</li>
+  <li>Implement DDoS protection measures</li>
+  </ul>
+</li>
+</ol>
+
+<h2 id="pre-election-configuration">Pre-Election Configuration</h2>
+
+<h3>Election Setup</h3>
+
+<ol>
+<li><strong>Create a New Election</strong>:
+  <ul>
+  <li>Log in to the Admin Panel</li>
+  <li>Navigate to "Election Management" > "Create New Election"</li>
+  <li>Enter election details:
+    <ul>
+    <li>Name</li>
+    <li>Date</li>
+    <li>Type (Presidential, Parliamentary, County, etc.)</li>
+    <li>Applicable constituencies</li>
+    </ul>
+  </li>
+  <li>Submit and review the created election</li>
+  </ul>
+</li>
+</ol>
+
+<p><em>For complete details on all administrative functions, please refer to the full Administrator Guide document.</em></p>
+
+<h2 id="support-resources">Support Resources</h2>
+
+<h3>Contact Information</h3>
+
+<ul>>
+<li><strong>Technical Help Desk</strong>: +254 705893137</li>
+<li><strong>Email Support</strong>: eliudsamwels7@gmail.com</li>
+        </div>
+        
+        <div class="footer">
+            © 2025 Independent Electoral and Boundaries Commission of Kenya. All rights reserved.
+        </div>
+    </div>
+    
+    <script>
+        // Add print button
+        document.body.innerHTML += '<div style="position: fixed; top: 20px; right: 20px;"><button onclick="window.print()">Print to PDF</button></div>';
+    </script>
+</body>
+</html>

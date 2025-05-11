@@ -8,9 +8,9 @@
     <!-- Browser API Polyfill (Must be first in head) -->
     <script>
         // Ensure browser object exists
-        if (typeof browser === 'undefined') {
+        if (typeof window.browser === 'undefined') {
             console.log('Adding browser polyfill to prevent "browser is not defined" errors');
-            window.browser = window.browser || {};
+            window.browser = {};
             
             // Create browser.runtime 
             window.browser.runtime = window.browser.runtime || {
@@ -89,7 +89,7 @@
                 // For each API, check if chrome has it and use it if available
                 if (chrome.runtime) {
                     if (chrome.runtime.sendMessage) {
-                        browser.runtime.sendMessage = function() {
+                        window.browser.runtime.sendMessage = function() {
                             return new Promise((resolve) => {
                                 chrome.runtime.sendMessage.apply(chrome.runtime, [...arguments, resolve]);
                             });

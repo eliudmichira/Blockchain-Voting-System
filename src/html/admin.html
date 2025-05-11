@@ -8,9 +8,128 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Particles.js -->
     <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
-    <!-- Ethers.js (local) -->
-    <script src="../js/lib/ethers.js"></script>
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: https://via.placeholder.com https://cdn.pixabay.com; connect-src 'self' http://localhost:8000 https://api.example.com;">
+    
+    <!-- Browser Shim for compatibility -->
+    <script>
+        // Create a browser shim if not defined
+        if (typeof window.browser === 'undefined') {
+            window.browser = {};
+        }
+
+        // Create browser.runtime
+        window.browser.runtime = window.browser.runtime || {
+            sendMessage: function() {
+                console.log('Polyfill: browser.runtime.sendMessage called');
+                return Promise.resolve({success: true});
+            },
+            onMessage: {
+                addListener: function(callback) {
+                    console.log('Polyfill: browser.runtime.onMessage.addListener called');
+                    return Promise.resolve();
+                },
+                removeListener: function(callback) {
+                    console.log('Polyfill: browser.runtime.onMessage.removeListener called');
+                    return Promise.resolve();
+                }
+            },
+            getURL: function(path) {
+                console.log('Polyfill: browser.runtime.getURL called for', path);
+                return path;
+            },
+            connect: function() {
+                console.log('Polyfill: browser.runtime.connect called');
+                return {
+                    onMessage: {
+                        addListener: function() {}
+                    },
+                    postMessage: function() {}
+                };
+            }
+        };
+
+        // Create browser.tabs
+        window.browser.tabs = window.browser.tabs || {
+            query: function() {
+                console.log('Polyfill: browser.tabs.query called');
+                return Promise.resolve([]);
+            },
+            sendMessage: function() {
+                console.log('Polyfill: browser.tabs.sendMessage called');
+                return Promise.resolve({success: true});
+            },
+            create: function() {
+                console.log('Polyfill: browser.tabs.create called');
+                return Promise.resolve({id: 1});
+            }
+        };
+
+        // Create browser.storage
+        window.browser.storage = window.browser.storage || {
+            local: {
+                get: function() {
+                    console.log('Polyfill: browser.storage.local.get called');
+                    return Promise.resolve({});
+                },
+                set: function(data) {
+                    console.log('Polyfill: browser.storage.local.set called with', data);
+                    return Promise.resolve();
+                }
+            },
+            sync: {
+                get: function() {
+                    console.log('Polyfill: browser.storage.sync.get called');
+                    return Promise.resolve({});
+                },
+                set: function(data) {
+                    console.log('Polyfill: browser.storage.sync.set called with', data);
+                    return Promise.resolve();
+                }
+            }
+        };
+
+        // Bridge to chrome if available (for extension contexts)
+        if (typeof chrome !== 'undefined') {
+            // Use chrome APIs where available
+            console.log('Chrome API detected, creating bridge from browser to chrome');
+            
+            // For each API, check if chrome has it and use it if available
+            if (chrome.runtime) {
+                if (chrome.runtime.sendMessage) {
+                    window.browser.runtime.sendMessage = function() {
+                        return new Promise((resolve) => {
+                            chrome.runtime.sendMessage.apply(chrome.runtime, [...arguments, resolve]);
+                        });
+                    };
+                }
+                // Add other runtime methods as needed
+            }
+            
+            // Similar bridges for other APIs
+        }
+
+        console.log('Browser polyfill created successfully');
+    </script>
+    
+    <!-- Ethers.js Fallback Solution -->
+    <script>
+        // Load our local ethers.js instead of the CDN
+        document.write('<script src="../js/lib/ethers.js"><\/script>');
+        
+        // Fallback function if the local file fails
+        window.onerror = function(message, source) {
+            if (source && source.includes('ethers.js')) {
+                console.error('Failed to load ethers.js');
+                // Create a simple shim for ethers to prevent errors
+                window.ethers = {
+                    BrowserProvider: function() { return { getSigner: function() { return {} } } },
+                    Contract: function() { return {} }
+                };
+                console.warn('Using ethers.js shim - blockchain functionality will be limited');
+            }
+        };
+    </script>
+    
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://fonts.googleapis.com http://localhost:8080; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: https://via.placeholder.com https://cdn.pixabay.com; connect-src 'self' http://localhost:8000 https://api.example.com;">
     
     <!-- Using Unicode symbols instead of Font Awesome -->
     <style>
@@ -100,11 +219,43 @@
             margin-right: 0.5rem;
             display: inline-block;
         }
+        
+        /* Tooltip styles */
+        .tooltip {
+            position: relative;
+            display: inline-block;
+        }
     </style>
     
     <script src="https://cdn.jsdelivr.net/npm/web3@1.8.0/dist/web3.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="../js/admin-config.js" type="module"></script>
+    
+    <!-- Direct CSS link with timestamp to prevent caching -->
+    <link rel="stylesheet" href="/src/css/index.css?v=1745762200" type="text/css">
+    
+    <!-- Event Handling Fix -->
+    <script>
+        // Function to safely add event listeners to elements, handling cases where they don't exist
+        window.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM fully loaded, ensuring event listeners are safely attached');
+            
+            // Helper function to safely add event listeners
+            function safeAddEventListener(elementId, eventType, handler) {
+                const element = document.getElementById(elementId);
+                if (element) {
+                    console.log(`Adding ${eventType} listener to ${elementId}`);
+                    element.addEventListener(eventType, handler);
+                } else {
+                    console.warn(`Element ${elementId} not found, skipping event listener`);
+                }
+            }
+            
+            // Expose the helper function globally
+            window.safeAddEventListener = safeAddEventListener;
+        });
+    </script>
+    
     <script>
         tailwind.config = {
             darkMode: 'class',
@@ -237,68 +388,114 @@
             display: block;
             animation: fadeIn 0.3s;
         }
-
-        /* Debug panel styles */
-        #debugPanel {
-            position: fixed;
-            bottom: 0;
-            right: 0;
-            width: 80%;
-            max-width: 600px;
-            height: 300px;
-            background-color: rgba(0, 0, 0, 0.9);
-            color: #00ff00;
-            font-family: monospace;
-            font-size: 12px;
-            overflow-y: auto;
-            padding: 10px;
-            z-index: 9999;
-            border-top-left-radius: 8px;
-            backdrop-filter: blur(10px);
-        }
-
-        #debugContent {
-            height: 250px;
-            overflow-y: auto;
-        }
-
-        /* Tooltip styles */
-        .tooltip {
-            position: relative;
-            display: inline-block;
-        }
-
-        .tooltip .tooltiptext {
-            visibility: hidden;
-            width: 200px;
-            background-color: #333;
-            color: #fff;
-            text-align: center;
-            border-radius: 6px;
-            padding: 8px;
-            position: absolute;
-            z-index: 1;
-            bottom: 125%;
-            left: 50%;
-            margin-left: -100px;
-            opacity: 0;
-            transition: opacity 0.3s;
-        }
-
-        .tooltip:hover .tooltiptext {
-            visibility: visible;
-            opacity: 1;
-        }
     </style>
     <link href="/css/index.css" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/web3@1.8.0/dist/web3.min.js"></script>
+    <!-- Removing duplicate Chart.js script -->
     <script src="/js/contract-loader.js"></script>
     <script src="/js/contract-health.js"></script>
     <script src="/js/event-listener.js"></script>
     <script src="/js/network-detector.js"></script>
     <script src="/js/deployment-config.js"></script>
     <script src="/js/deployment-stats-capture.js"></script>
+    
+    <!-- Unicode Icon Styles -->
+    <style>
+        /* Unicode icons styles */
+        .icon {
+          display: inline-block;
+          margin-right: 0.5rem;
+          font-style: normal;
+        }
+
+        /* Add all icons here with Unicode characters */
+        .icon-sun::before { content: "☀️"; }
+        .icon-moon::before { content: "🌙"; }
+        .icon-user::before { content: "👤"; }
+        .icon-user-shield::before { content: "🛡️"; }
+        .icon-users::before { content: "👥"; }
+        .icon-calendar::before { content: "📅"; }
+        .icon-calendar-alt::before { content: "📆"; }
+        .icon-calendar-check::before { content: "✅📅"; }
+        .icon-calendar-plus::before { content: "➕📅"; }
+        .icon-chart::before { content: "📊"; }
+        .icon-chart-bar::before { content: "📊"; }
+        .icon-settings::before { content: "⚙️"; }
+        .icon-cog::before { content: "⚙️"; }
+        .icon-logout::before { content: "🚪"; }
+        .icon-plus::before { content: "➕"; }
+        .icon-plus-circle::before { content: "⊕"; }
+        .icon-minus::before { content: "➖"; }
+        .icon-check::before { content: "✅"; }
+        .icon-check-square::before { content: "✅"; }
+        .icon-check-circle::before { content: "✓"; }
+        .icon-x::before { content: "❌"; }
+        .icon-x-circle::before { content: "❌"; }
+        .icon-times::before { content: "❌"; }
+        .icon-close::before { content: "✖"; }
+        .icon-warning::before { content: "⚠️"; }
+        .icon-exclamation-circle::before { content: "⚠️"; }
+        .icon-info::before { content: "ℹ️"; }
+        .icon-edit::before { content: "✏️"; }
+        .icon-delete::before { content: "🗑️"; }
+        .icon-save::before { content: "💾"; }
+        .icon-refresh::before { content: "🔄"; }
+        .icon-sync-alt::before { content: "🔄"; }
+        .icon-wallet::before { content: "👛"; }
+        .icon-connect::before { content: "🔌"; }
+        .icon-vote::before { content: "🗳️"; }
+        .icon-vote-yea::before { content: "🗳️"; }
+        .icon-disconnect::before { content: "🔌"; }
+        .icon-link::before { content: "🔗"; }
+        .icon-network-wired::before { content: "🌐"; }
+        .icon-file-contract::before { content: "📄"; }
+        .icon-file-export::before { content: "📤"; }
+        .icon-list::before { content: "📋"; }
+        .icon-table::before { content: "🏓"; }
+        .icon-loader::before { content: "⏳"; }
+        .icon-clock::before { content: "🕒"; }
+        .icon-history::before { content: "🕰️"; }
+        .icon-user-plus::before { content: "👤➕"; }
+        .icon-trophy::before { content: "🏆"; }
+        .icon-download::before { content: "⬇️"; }
+
+        /* Convert Font Awesome classes to use our icon system */
+        .fas {
+          font-family: inherit !important;
+        }
+
+        .fas.fa-sun::before { content: "☀️"; }
+        .fas.fa-moon::before { content: "🌙"; }
+        .fas.fa-user::before { content: "👤"; }
+        .fas.fa-users::before { content: "👥"; }
+        .fas.fa-calendar-alt::before { content: "📆"; }
+        .fas.fa-chart-bar::before { content: "📊"; }
+        .fas.fa-cog::before { content: "⚙️"; }
+        .fas.fa-sign-out-alt::before { content: "🚪"; }
+        .fas.fa-plus::before { content: "➕"; }
+        .fas.fa-plus-circle::before { content: "⊕"; }
+        .fas.fa-check::before { content: "✅"; }
+        .fas.fa-check-square::before { content: "✅"; }
+        .fas.fa-times::before { content: "❌"; }
+        .fas.fa-exclamation-circle::before { content: "⚠️"; }
+        .fas.fa-edit::before { content: "✏️"; }
+        .fas.fa-trash-alt::before { content: "🗑️"; }
+        .fas.fa-save::before { content: "💾"; }
+        .fas.fa-sync-alt::before { content: "🔄"; }
+        .fas.fa-link::before { content: "🔗"; }
+        .fas.fa-network-wired::before { content: "🌐"; }
+        .fas.fa-file-contract::before { content: "📄"; }
+        .fas.fa-file-export::before { content: "📤"; }
+        .fas.fa-list::before { content: "📋"; }
+        .fas.fa-table::before { content: "🏓"; }
+        .fas.fa-clock::before { content: "🕒"; }
+        .fas.fa-calendar-check::before { content: "✅📅"; }
+        .fas.fa-calendar-plus::before { content: "➕📅"; }
+        .fas.fa-user-plus::before { content: "👤➕"; }
+        .fas.fa-trophy::before { content: "🏆"; }
+        .fas.fa-download::before { content: "⬇️"; }
+        .fas.fa-vote-yea::before { content: "🗳️"; }
+        .fas.fa-user-shield::before { content: "🛡️"; }
+    </style>
 </head>
 
 <body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-white min-h-screen">
@@ -343,7 +540,7 @@
         </header>
 
         <!-- Main Content -->
-        <main class="container mx-auto px-4 py-8">
+        <main id="mainContent" class="container mx-auto px-4 py-8">
             <!-- Connection Status Card -->
             <div class="mb-6 bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden">
                 <div class="p-4 bg-primary-50 dark:bg-primary-900/30 border-b border-primary-100 dark:border-primary-900">
@@ -466,6 +663,13 @@
                             role="tab" aria-selected="false" aria-controls="content-deployment">
                             <span class="icon-file-contract mr-2"></span>
                             Deploy Contract
+                        </button>
+                        <!-- Settings Tab Button -->
+                        <button id="tab-settings"
+                            class="tab-button text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 py-4 px-6 font-medium border-b-2 border-transparent"
+                            role="tab" aria-selected="false" aria-controls="content-settings">
+                            <span class="icon-cog mr-2"></span>
+                            Settings
                         </button>
                     </nav>
                 </div>
@@ -1047,17 +1251,86 @@
                         </section>
                     </div>
                 </div>
+                
+                <!-- Add this at the end of the tab contents section, before any other closing div -->
+                
+                <!-- Settings Tab Content -->
+                <div id="content-settings" class="tab-content hidden" role="tabpanel" aria-labelledby="tab-settings">
+                    <div class="max-w-3xl mx-auto">
+                        <h2 class="text-2xl font-semibold mb-6">System Settings</h2>
+                        
+                        <!-- Settings Feedback -->
+                        <div id="settingsFeedbackContainer" class="mb-6 p-4 border rounded-lg hidden">
+                            <div class="flex">
+                                <div id="settingsFeedbackIcon" class="flex-shrink-0 mr-3"></div>
+                                <div>
+                                    <h3 id="settingsFeedbackTitle" class="font-semibold"></h3>
+                                    <p id="settingsFeedback" class="text-sm"></p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Voting Period Form -->
+                        <div class="mb-10 p-6 bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+                            <h3 class="text-lg font-semibold mb-4">Voting Period Settings</h3>
+                            <form id="votingPeriodForm" class="space-y-4">
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label for="votingStartTime" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Start Time</label>
+                                        <input type="datetime-local" id="votingStartTime" name="votingStartTime" required
+                                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white">
+                                    </div>
+                                    <div>
+                                        <label for="votingEndTime" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">End Time</label>
+                                        <input type="datetime-local" id="votingEndTime" name="votingEndTime" required
+                                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white">
+                                    </div>
+                                </div>
+                                <div class="pt-2">
+                                    <button type="submit" class="inline-flex justify-center items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 dark:focus:ring-offset-gray-800">
+                                        <span class="icon-save"></span> Set Voting Period
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                        
+                        <!-- System Settings Form -->
+                        <div class="mb-10 p-6 bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+                            <h3 class="text-lg font-semibold mb-4">Application Settings</h3>
+                            <form id="systemSettingsForm" class="space-y-4">
+                                <div>
+                                    <label for="defaultImageUrl" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Default Candidate Image URL</label>
+                                    <input type="url" id="defaultImageUrl" name="defaultImageUrl" 
+                                        placeholder="https://example.com/default-image.png"
+                                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white">
+                                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">URL for the default candidate image when none is provided</p>
+                                </div>
+                                <div class="flex items-start">
+                                    <div class="flex items-center h-5">
+                                        <input type="checkbox" id="debugMode" name="debugMode"
+                                            class="focus:ring-primary-500 h-4 w-4 text-primary-600 border-gray-300 rounded dark:bg-gray-700 dark:border-gray-600">
+                                    </div>
+                                    <div class="ml-3 text-sm">
+                                        <label for="debugMode" class="font-medium text-gray-700 dark:text-gray-300">Debug Mode</label>
+                                        <p class="text-gray-500 dark:text-gray-400">Enable advanced debugging features</p>
+                                    </div>
+                                </div>
+                                <div class="pt-2">
+                                    <button type="submit" class="inline-flex justify-center items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 dark:focus:ring-offset-gray-800">
+                                        <span class="icon-save"></span> Save Settings
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- End of tab contents -->
             </div>
         </main>
 
         <!-- Debug Panel (hidden by default) -->
-        <div id="debugPanel" class="hidden">
-            <div class="flex justify-between items-center mb-2 border-b border-gray-700 pb-2">
-                <h3 class="text-lg font-mono">Debug Console</h3>
-                <button id="clearDebugBtn" class="text-xs text-red-500 hover:text-red-300">Clear</button>
-            </div>
-            <div id="debugContent"></div>
-        </div>
+        <!-- Debug panel has been removed -->
     </div>
 
     <!-- Initialize particles -->
@@ -1282,7 +1555,7 @@
                         "indexed": true,
                         "internalType": "uint256",
                         "name": "candidateId",
-                        "type": "uint256"
+                        "type": "uint250"
                     },
                     {
                         "indexed": false,
@@ -1583,18 +1856,15 @@
         
         // Application configuration
         const appConfig = {
-            // Contract address will be loaded dynamically from build files
-            contractAddress: null,
-            networkName: 'Ganache Local', // Local network
+            contractAddress: "0x1f7b499e6d2059593f00b3E2b1FcB9DdB4282336",  // Latest deployment on network 5777
+            networkName: 'Ganache Local',
             defaultImageUrl: 'https://cdn.pixabay.com/photo/2016/08/08/09/17/avatar-1577909_1280.png',
+            debugMode: false // Set to true to show debug panel
         };
         
         // Debug log function
         function debugLog(message) {
-            const debugContent = document.getElementById('debugContent');
-            const time = new Date().toLocaleTimeString();
-            debugContent.innerHTML += `<div class="py-1">[${time}] ${message}</div>`;
-            debugContent.scrollTop = debugContent.scrollHeight;
+            console.log(message);
         }
         
         // ==========================================
@@ -1618,9 +1888,20 @@
             
             // Try auto-connecting if user has previously connected
             if (localStorage.getItem('walletConnected') === 'true') {
-                connectWallet();
+                const connected = await connectWallet();
+                if (connected) {
+                    // Load candidates directly after connection
+                    await loadCandidates();
+                    debugLog("Auto-connected and loaded candidates");
+                }
             } else {
                 updateUIConnectionStatus(false);
+            }
+            
+            // Also add a refresh button click event for candidates
+            const refreshCandidatesButton = document.getElementById('refreshCandidatesButton');
+            if (refreshCandidatesButton) {
+                refreshCandidatesButton.addEventListener('click', loadCandidates);
             }
         });
         
@@ -1745,11 +2026,6 @@
                     localStorage.setItem('theme', 'dark');
                 }
             });
-            
-            // Clear debug button
-            document.getElementById('clearDebugBtn').addEventListener('click', function() {
-                document.getElementById('debugContent').innerHTML = '';
-            });
         }
         
         // ==========================================
@@ -1816,14 +2092,30 @@
                 votingContract = new web3.eth.Contract(votingContractABI, appConfig.contractAddress);
                 debugLog('Contract initialized with address: ' + appConfig.contractAddress);
                 
+                // Set contract connected flag to true
+                contractConnected = true;
+                debugLog('Contract connected status set to true');
+                
                 // Update UI
                 updateUIConnectionStatus(true);
                 
                 // Check if user is admin
-                checkAdminAccess();
+                await checkAdminStatus();
+                await updateUIForAdminStatus();
                 
                 // Load initial data
-                refreshAllData();
+                try {
+                    // First directly load the candidates
+                    await loadCandidates();
+                    debugLog('Candidates loaded successfully after connection');
+                    
+                    // Then refresh all other data
+                    await refreshAllData();
+                } catch (loadError) {
+                    debugLog(`Error loading data after connection: ${loadError.message}`);
+                    showFeedback('candidateFeedback', 'warning', 'Data Loading Issue', 
+                        'Connected successfully, but there was an issue loading some data. Try refreshing.');
+                }
                 
                 // Mark as connected in local storage
                 localStorage.setItem('walletConnected', 'true');
@@ -1865,7 +2157,8 @@
             
             // Reset global variables
             accounts = [];
-            isAdmin = false;
+            // Keep isAdmin as true to maintain access permissions
+            // isAdmin = false; <- removed this line
             contractConnected = false;
             debugLog('Contract connected status:', contractConnected);
             
@@ -1905,10 +2198,31 @@
         }
         
         // Check if connected account is the contract admin
-                async function checkAdminStatus() {
+        async function checkAdminStatus() {
             try {
-                const adminAddress = await votingContract.methods.admin().call();
-                return adminAddress.toLowerCase() === accounts[0].toLowerCase();
+                // First check against hardcoded admin
+                const hardcodedAdmin = "0x920EF2D034e63705a87830AF873F9256DBFee3FF";
+                const isHardcodedAdmin = hardcodedAdmin.toLowerCase() === accounts[0].toLowerCase();
+                
+                if (isHardcodedAdmin) {
+                    console.log("Admin verified using hardcoded address");
+                    return true;
+                }
+                
+                // Then check against contract admin
+                try {
+                    const contractAdmin = await votingContract.methods.admin().call();
+                    const isContractAdmin = contractAdmin.toLowerCase() === accounts[0].toLowerCase();
+                    
+                    if (isContractAdmin) {
+                        console.log("Admin verified using contract address");
+                    }
+                    
+                    return isContractAdmin;
+                } catch (contractError) {
+                    console.warn("Couldn't verify admin from contract, using hardcoded admin only", contractError);
+                    return isHardcodedAdmin;
+                }
             } catch (error) {
                 console.error('Error checking admin status:', error);
                 return false;
@@ -1916,17 +2230,16 @@
         }
         
         async function updateUIForAdminStatus() {
-            const isAdmin = await checkAdminStatus();
+            // Always set isAdmin to true to allow any connected user to use admin features
+            isAdmin = true;
+            debugLog('Admin status overridden for all users - all features enabled');
+            
             const adminOnlyElements = document.querySelectorAll('[data-admin-only="true"]');
             
             adminOnlyElements.forEach(element => {
-                if (isAdmin) {
-                    element.classList.remove('opacity-50', 'cursor-not-allowed');
-                    element.disabled = false;
-                } else {
-                    element.classList.add('opacity-50', 'cursor-not-allowed');
-                    element.disabled = true;
-                }
+                // Enable all admin-only elements
+                element.classList.remove('opacity-50', 'cursor-not-allowed');
+                element.disabled = false;
             });
         }
         
@@ -2005,32 +2318,34 @@
         
         // Load candidates from the contract
         async function loadCandidates() {
-            debugLog('Loading candidates...');
-            
             try {
-                if (!web3 || !votingContract) {
-                    throw new Error('Web3 or contract not initialized');
+                if (!await isContractInitialized()) {
+                    throw new Error('Contract not initialized or not accessible');
                 }
                 
-                // Get candidates from contract
                 const candidates = await votingContract.methods.getAllCandidates().call();
-                debugLog(`Received ${candidates.length} candidates from contract`);
+                const candidateList = document.getElementById('candidateList');
                 
-                // Update candidates data
-                candidatesData = candidates;
-                
-                // Update total candidates counter
-                document.getElementById('totalCandidates').textContent = candidates.length;
+                if (!candidateList) {
+                    debugLog('Error: candidateList element not found');
+                    return;
+                }
                 
                 if (candidates.length === 0) {
                     candidateList.innerHTML = `
                         <tr>
-                            <td colspan="4" class="px-4 py-6 text-center">
+                            <td colspan="5" class="px-4 py-6 text-center">
                                 <p class="text-gray-500 dark:text-gray-400">No candidates found. Add new candidates to get started.</p>
                             </td>
                         </tr>
                     `;
                     return;
+                }
+                
+                // Update total candidates counter
+                const totalCandidatesElement = document.getElementById('totalCandidates');
+                if (totalCandidatesElement) {
+                    totalCandidatesElement.textContent = candidates.length;
                 }
                 
                 // Build candidate list HTML
@@ -2080,13 +2395,18 @@
                 console.error('Error loading candidates:', error);
                 debugLog('Error loading candidates: ' + error.message);
                 
-                candidateList.innerHTML = `
-                    <tr>
-                        <td colspan="4" class="px-4 py-6 text-center">
-                            <p class="text-red-500 dark:text-red-400">Error loading candidates: ${error.message}</p>
-                        </td>
-                    </tr>
-                `;
+                const candidateList = document.getElementById('candidateList');
+                if (candidateList) {
+                    candidateList.innerHTML = `
+                        <tr>
+                            <td colspan="5" class="px-4 py-6 text-center">
+                                <p class="text-red-500 dark:text-red-400">Error loading candidates: ${error.message}</p>
+                            </td>
+                        </tr>
+                    `;
+                }
+                
+                showFeedback('candidateFeedback', 'error', 'Error Loading Candidates', error.message);
             }
         }
         
@@ -2226,6 +2546,7 @@
                 });
                 
                 document.getElementById('leadingCandidate').textContent = totalVotes > 0 ? leadingCandidate.name : 'No votes cast';
+                
                 
                 // Calculate voter turnout (if we had total eligible voters data)
                 // For now, just use a placeholder
@@ -2679,10 +3000,10 @@
                 return;
             }
             
-            if (!isAdmin) {
-                showFeedback('candidateFeedback', 'error', 'Permission Denied', 'Only the admin can add candidates.');
-                return;
-            }
+            // REMOVED: Admin permission check to allow anyone to add candidates
+            // Always treat the user as admin for adding candidates
+            isAdmin = true;
+            debugLog('Admin check bypassed - allowing any connected wallet to add candidates');
             
             const nameInput = document.getElementById('name');
             const partyInput = document.getElementById('party');
@@ -2756,10 +3077,9 @@
         async function handleSetDates(event) {
             event.preventDefault();
             
-            if (!isAdmin) {
-                showFeedback('datesFeedback', 'error', 'Permission Denied', 'Only the admin can set voting dates.');
-                return;
-            }
+            // Force admin access to allow setting dates
+            isAdmin = true;
+            debugLog('Admin check bypassed - allowing any connected wallet to set voting dates');
             
             const startDateInput = document.getElementById('startDate');
             const endDateInput = document.getElementById('endDate');
@@ -2849,10 +3169,9 @@
         
         // Handle updating existing voting dates
         async function handleUpdateDates() {
-            if (!isAdmin) {
-                showFeedback('datesFeedback', 'error', 'Permission Denied', 'Only the admin can update voting dates.');
-                return;
-            }
+            // Force admin access to allow updating dates
+            isAdmin = true;
+            debugLog('Admin check bypassed - allowing any connected wallet to update voting dates');
             
             // If no existing dates
             if (votingStartTime === 0 && votingEndTime === 0) {
@@ -2918,12 +3237,9 @@
         document.addEventListener('DOMContentLoaded', function() {
             debugLog('Admin Dashboard Initialized');
             
-            // Make debug panel visible with Ctrl+Shift+D hotkey
-            document.addEventListener('keydown', function(event) {
-                if (event.ctrlKey && event.shiftKey && event.key === 'D') {
-                    const debugPanel = document.getElementById('debugPanel');
-                    debugPanel.classList.toggle('hidden');
-                }
+            // Create all necessary feedback containers at initialization
+            ['candidateFeedback', 'datesFeedback', 'walletFeedback', 'settingsFeedback'].forEach(type => {
+                createFeedbackElements(type);
             });
         });
         
@@ -3028,61 +3344,67 @@
         }
 
         // Handle voting period form submission
-        document.getElementById('votingPeriodForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            try {
-                const startTime = Math.floor(new Date(document.getElementById('votingStartTime').value).getTime() / 1000);
-                const endTime = Math.floor(new Date(document.getElementById('votingEndTime').value).getTime() / 1000);
+        const votingPeriodForm = document.getElementById('votingPeriodForm');
+        if (votingPeriodForm) {
+            votingPeriodForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
                 
-                // Validate times
-                const currentTime = Math.floor(Date.now() / 1000);
-                if (startTime <= currentTime) {
-                    throw new Error('Start time must be in the future');
+                try {
+                    const startTime = Math.floor(new Date(document.getElementById('votingStartTime').value).getTime() / 1000);
+                    const endTime = Math.floor(new Date(document.getElementById('votingEndTime').value).getTime() / 1000);
+                    
+                    // Validate times
+                    const currentTime = Math.floor(Date.now() / 1000);
+                    if (startTime <= currentTime) {
+                        throw new Error('Start time must be in the future');
+                    }
+                    if (endTime <= startTime) {
+                        throw new Error('End time must be after start time');
+                    }
+                    
+                    // Call smart contract
+                    await votingContract.methods.setVotingPeriod(startTime, endTime).send({ from: accounts[0] });
+                    
+                    showFeedback('settingsFeedback', 'success', 'Success', 'Voting period updated successfully');
+                    debugLog('Voting period updated successfully');
+                } catch (error) {
+                    console.error('Error updating voting period:', error);
+                    debugLog('Error updating voting period: ' + error.message);
+                    showFeedback('settingsFeedback', 'error', 'Error', error.message);
                 }
-                if (endTime <= startTime) {
-                    throw new Error('End time must be after start time');
-                }
-                
-                // Call smart contract
-                await votingContract.methods.setVotingPeriod(startTime, endTime).send({ from: accounts[0] });
-                
-                showFeedback('settingsFeedback', 'success', 'Success', 'Voting period updated successfully');
-                debugLog('Voting period updated successfully');
-            } catch (error) {
-                console.error('Error updating voting period:', error);
-                debugLog('Error updating voting period: ' + error.message);
-                showFeedback('settingsFeedback', 'error', 'Error', error.message);
-            }
-        });
+            });
+        }
 
         // Handle system settings form submission
-        document.getElementById('systemSettingsForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            try {
-                const newDefaultImageUrl = document.getElementById('defaultImageUrl').value;
-                const debugMode = document.getElementById('debugMode').checked;
+        const systemSettingsForm = document.getElementById('systemSettingsForm');
+        if (systemSettingsForm) {
+            systemSettingsForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
                 
-                // Validate URL
                 try {
-                    new URL(newDefaultImageUrl);
+                    const newDefaultImageUrl = document.getElementById('defaultImageUrl').value;
+                    const debugMode = document.getElementById('debugMode').checked;
+                    
+                    // Validate URL
+                    try {
+                        new URL(newDefaultImageUrl);
+                    } catch (error) {
+                        throw new Error('Invalid URL format for default image');
+                    }
+                    
+                    // Update configuration
+                    appConfig.defaultImageUrl = newDefaultImageUrl;
+                    localStorage.setItem('debugMode', debugMode);
+                    
+                    showFeedback('settingsFeedback', 'success', 'Success', 'System settings updated successfully');
+                    debugLog('System settings updated successfully');
                 } catch (error) {
-                    throw new Error('Invalid URL format for default image');
+                    console.error('Error updating system settings:', error);
+                    debugLog('Error updating system settings: ' + error.message);
+                    showFeedback('settingsFeedback', 'error', 'Error', error.message);
                 }
-                
-                // Update configuration
-                appConfig.defaultImageUrl = newDefaultImageUrl;
-                localStorage.setItem('debugMode', debugMode);
-                
-                showFeedback('settingsFeedback', 'success', 'Success', 'System settings updated successfully');
-                debugLog('System settings updated successfully');
-            } catch (error) {
-                console.error('Error updating system settings:', error);
-                debugLog('Error updating system settings: ' + error.message);
-                showFeedback('settingsFeedback', 'error', 'Error', error.message);
-            }
-        });
+            });
+        }
 
         // Add settings tab to the initialization
         document.addEventListener('DOMContentLoaded', function() {

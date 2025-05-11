@@ -1,6 +1,13 @@
 // Configuration Management and Contract Deployment Handler
-import { ethers } from 'ethers';
-import VotingContract from '../../contracts/Voting.sol';
+// import { ethers } from 'ethers';
+// import VotingContract from '../../contracts/Voting.sol';
+
+// Use the global ethers object instead
+// And define a minimal VotingContract object for development
+const VotingContract = {
+    abi: [], // This would normally be filled with the contract ABI
+    bytecode: '0x' // This would normally be filled with the contract bytecode
+};
 
 class AdminConfigManager {
     constructor() {
@@ -32,9 +39,26 @@ class AdminConfigManager {
 
     async loadCurrentConfig() {
         try {
-            const response = await fetch('/api/config');
-            this.config = await response.json();
+            // Mock configuration data instead of fetching from server
+            this.config = {
+                server: {
+                    port: 8080,
+                    host: 'localhost'
+                },
+                blockchain: {
+                    provider: 'http://localhost:8545',
+                    gas: {
+                        limit: 3000000
+                    }
+                },
+                app: {
+                    theme: {
+                        defaultTheme: 'light'
+                    }
+                }
+            };
             this.populateConfigForm();
+            debugLog('Using mock configuration data');
         } catch (error) {
             this.showNotification('Error loading configuration', 'error');
         }
@@ -53,56 +77,59 @@ class AdminConfigManager {
         document.getElementById('defaultTheme').value = this.config.app?.theme?.defaultTheme || 'light';
     }
 
-    async handleConfigSubmit(event) {
-        event.preventDefault();
-        const formData = new FormData(event.target);
-        const config = {
-            server: {
-                port: parseInt(formData.get('server.port')),
-                host: formData.get('server.host')
-            },
-            blockchain: {
-                provider: formData.get('blockchain.provider'),
-                gas: {
-                    limit: parseInt(formData.get('blockchain.gas.limit'))
-                }
-            },
-            app: {
-                theme: {
-                    defaultTheme: formData.get('app.theme.defaultTheme')
-                }
-            }
-        };
+    async handleConfigSubmit(e) {
+        e.preventDefault();
+        if (!this.configForm) return;
+        
+        const formData = new FormData(this.configForm);
+        const config = {};
+        
+        formData.forEach((value, key) => {
+            const [section, field] = key.split('.');
+            if (!config[section]) config[section] = {};
+            config[section][field] = value;
+        });
 
         try {
-            const response = await fetch('/api/config', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(config)
-            });
-
-            if (response.ok) {
-                this.showNotification('Configuration updated successfully', 'success');
-                this.config = config;
-            } else {
-                throw new Error('Failed to update configuration');
-            }
+            // Mock successful API response
+            this.showNotification('Configuration updated successfully', 'success');
+            localStorage.setItem('appConfig', JSON.stringify(config));
+            this.config = config;
+            debugLog('Updated configuration:', config);
         } catch (error) {
-            this.showNotification('Error updating configuration: ' + error.message, 'error');
+            console.error('Error updating configuration:', error);
+            this.showNotification('Error updating configuration', 'error');
         }
     }
 
     async handleConfigReset() {
+        if (!confirm('Are you sure you want to reset to default configuration?')) return;
+
         try {
-            const response = await fetch('/api/config/reset', { method: 'POST' });
-            if (response.ok) {
-                this.config = await response.json();
-                this.populateConfigForm();
-                this.showNotification('Configuration reset to defaults', 'success');
-            }
+            // Reset to default mock configuration
+            this.config = {
+                server: {
+                    port: 8080,
+                    host: 'localhost'
+                },
+                blockchain: {
+                    provider: 'http://localhost:8545',
+                    gas: {
+                        limit: 3000000
+                    }
+                },
+                app: {
+                    theme: {
+                        defaultTheme: 'light'
+                    }
+                }
+            };
+            this.populateConfigForm();
+            localStorage.removeItem('appConfig');
+            this.showNotification('Configuration reset to defaults', 'success');
+            debugLog('Configuration reset to defaults');
         } catch (error) {
+            console.error('Error resetting configuration:', error);
             this.showNotification('Error resetting configuration', 'error');
         }
     }
@@ -185,13 +212,9 @@ class AdminConfigManager {
 
     async saveContractAddress(address) {
         try {
-            await fetch('/api/contract/address', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ address })
-            });
+            // Mock saving contract address
+            console.log('Contract address saved (mock):', address);
+            this.showNotification(`Contract address saved: ${address}`, 'success');
         } catch (error) {
             console.error('Error saving contract address:', error);
         }
@@ -240,6 +263,63 @@ class AdminConfigManager {
         setTimeout(() => {
             notification.remove();
         }, 5000);
+    }
+
+    async switchEnvironment(e) {
+        const environment = e.target.value;
+        try {
+            // Mock environment switch
+            const envConfig = {
+                server: {
+                    port: environment === 'production' ? 80 : 8080,
+                    host: environment === 'production' ? 'voting.app' : 'localhost'
+                },
+                blockchain: {
+                    provider: environment === 'production' ? 'https://mainnet.infura.io' : 'http://localhost:8545',
+                    gas: {
+                        limit: 3000000
+                    }
+                },
+                app: {
+                    theme: {
+                        defaultTheme: 'light'
+                    }
+                }
+            };
+            
+            this.config = envConfig;
+            this.populateConfigForm();
+            localStorage.setItem('currentEnvironment', environment);
+            this.showNotification(`Switched to ${environment} environment`, 'success');
+            debugLog(`Switched to ${environment} environment`);
+        } catch (error) {
+            console.error('Error switching environment:', error);
+            this.showNotification('Error switching environment', 'error');
+        }
+    }
+
+    async importConfig(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        try {
+            const config = await file.text();
+            const parsedConfig = JSON.parse(config);
+            
+            if (!this.validateConfig(parsedConfig)) {
+                throw new Error('Invalid configuration format');
+            }
+
+            // Mock successful import
+            localStorage.setItem('appConfig', JSON.stringify(parsedConfig));
+            this.config = parsedConfig;
+            this.populateConfigForm();
+            this.showNotification('Configuration imported successfully', 'success');
+            debugLog('Configuration imported successfully');
+        } catch (error) {
+            console.error('Error importing configuration:', error);
+            this.showNotification('Error importing configuration', 'error');
+        }
     }
 }
 

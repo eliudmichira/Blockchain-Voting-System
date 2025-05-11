@@ -1,6 +1,6 @@
 // Configuration
 const API_URL = "http://localhost:8000";
-const CONTRACT_ADDRESS = "0x2386778193F81C6E961E131D39C5b7D640e80864";
+const CONTRACT_ADDRESS = "0x1f7b499e6d2059593f00b3E2b1FcB9DdB4282336";  // Latest deployment on network 5777
 
 // State variables
 let provider;

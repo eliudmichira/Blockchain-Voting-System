@@ -1,0 +1,188 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>README.html</title>
+    <style>
+        body { font-family: Calibri, Arial, sans-serif; margin: 40px; line-height: 1.5; }
+        h1 { font-size: 24pt; color: #1a5276; }
+        h2 { font-size: 18pt; color: #2874a6; }
+        h3 { font-size: 14pt; color: #3498db; }
+        pre { background-color: #f5f5f5; padding: 10px; border-radius: 5px; }
+        code { font-family: Consolas, monospace; }
+        table { border-collapse: collapse; width: 100%; }
+        table, th, td { border: 1px solid #ddd; padding: 8px; }
+        th { background-color: #f2f2f2; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .header { border-bottom: 1px solid #ddd; margin-bottom: 20px; padding-bottom: 10px; }
+        .footer { border-top: 1px solid #ddd; margin-top: 20px; padding-top: 10px; text-align: center; font-size: 0.8em; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Blockchain-Based Electoral Management System</h1>
+            <p>Independent Electoral and Boundaries Commission of Kenya</p>
+        </div>
+        
+        <div class="content">
+<h1>Blockchain-Based Electoral Management System (BBEMS)</h1>
+
+A secure, transparent, and efficient electoral management system built for the Independent Electoral and Boundaries Commission of Kenya, leveraging blockchain technology.
+
+#<h1>Key Features</h1>
+
+- <strong>Secure Voter Authentication</strong>: National ID verification with blockchain-backed identity validation
+- <strong>Immutable Vote Recording</strong>: Blockchain-based voting ensures tamper-proof and transparent elections
+- <strong>Real-time Results Tabulation</strong>: Automated counting with verifiable blockchain records
+- <strong>Administrative Dashboard</strong>: Comprehensive election management interface for officials
+- <strong>Vote Verification</strong>: Individual vote verification through transaction receipts
+- <strong>Decentralized Architecture</strong>: Prevents single points of failure and enhances security
+
+#<h1>Technology Stack</h1>
+
+- <strong>Frontend</strong>: HTML5, CSS3 with Tailwind CSS for responsive design
+- <strong>Backend</strong>: Node.js with Express.js for RESTful API services
+- <strong>Blockchain</strong>: Ethereum-compatible network (configurable for private or public deployment)
+- <strong>Smart Contracts</strong>: Solidity 0.8.17 with secure voting protocols
+- <strong>Web3 Integration</strong>: Web3.js for blockchain interaction
+- <strong>Authentication</strong>: JWT with National ID verification
+- <strong>Database</strong>: Secure storage for non-sensitive data and configuration
+
+#<h1>System Requirements</h1>
+
+- <strong>Server Requirements</strong>:
+  - Modern CPU with 8+ cores
+  - 16GB RAM minimum (32GB recommended)
+  - 1TB SSD storage
+  - 100Mbps+ dedicated network connection
+
+- <strong>Client Requirements</strong>:
+  - Modern web browser (Chrome 88+, Firefox 85+, Edge 88+)
+  - MetaMask extension (or compatible Web3 wallet)
+  - Stable internet connection (1Mbps+)
+
+#<h1>Quick Start Guide</h1>
+
+1. Install dependencies:
+   <pre><code>
+   npm install
+   </code></pre>
+
+2. Configure the environment (create a .env file):
+   <pre><code>
+   API_URL=http://localhost:8000
+   CONTRACT_ADDRESS=0x1f7b499e6d2059593f00b3E2b1FcB9DdB4282336
+   ADMIN_ADDRESS=0x920EF2D034e63705a87830AF873F9256DBFee3FF
+   </code></pre>
+
+3. Start the full application:
+   <pre><code>
+   npm run start-all
+   </code></pre>
+   
+   Or start individual components:
+   <pre><code>
+   npm run start-db-api       <h1>Start the Database API</h1>
+   npm run deploy-contracts   <h1>Compile and deploy smart contracts</h1>
+   npm run start-server       <h1>Start the web server</h1>
+   </code></pre>
+
+4. Access the application:
+   - Voter Interface: http://localhost:3000
+   - Admin Dashboard: http://localhost:3000/admin.html
+
+#<h1>Blockchain Configuration</h1>
+
+##<h1>Local Development Network</h1>
+
+1. Start a local Ethereum node:
+   <pre><code>
+   npx ganache-cli
+   </code></pre>
+
+2. Deploy contracts to local network:
+   <pre><code>
+   npx truffle migrate --network development
+   </code></pre>
+
+3. Configure MetaMask:
+   - <strong>Network Name</strong>: IEBC Development
+   - <strong>RPC URL</strong>: http://127.0.0.1:7545
+   - <strong>Chain ID</strong>: 1337
+   - <strong>Currency Symbol</strong>: ETH
+
+##<h1>Production Deployment</h1>
+
+1. Deploy contracts to the production network:
+   <pre><code>
+   npx truffle migrate --network production
+   </code></pre>
+
+2. Configure MetaMask:
+   - <strong>Network Name</strong>: IEBC Voting Network
+   - <strong>RPC URL</strong>: [Provided by administrator]
+   - <strong>Chain ID</strong>: [Provided by administrator]
+   - <strong>Currency Symbol</strong>: ETH
+   
+#<h1>System Architecture</h1>
+
+BBEMS employs a three-tier architecture:
+
+1. <strong>Presentation Tier</strong>: Web-based interfaces for voters and administrators
+2. <strong>Application Tier</strong>: Node.js backend services and business logic
+3. <strong>Data Tier</strong>: Ethereum blockchain for vote storage with database for authentication
+
+The system ensures:
+- End-to-end security through encryption and blockchain immutability
+- Scalability through optimized smart contracts and load-balanced services
+- Redundancy and fault tolerance at each architectural level
+
+#<h1>Documentation</h1>
+
+Comprehensive documentation is available in the <code>/documentation</code> directory:
+
+- <strong>User Guide</strong>: Complete instructions for voters
+- <strong>Administrator Guide</strong>: Detailed guide for election officials
+- <strong>System Overview</strong>: Technical architecture and design documents
+- <strong>Test Plan</strong>: Comprehensive testing methodology and procedures
+
+##<h1>Viewing Documentation</h1>
+
+For the best experience, navigate to the <code>/documentation/html_output</code> directory and open <code>index.html</code> in your web browser for a complete listing of all available documentation.
+
+##<h1>Converting Documentation to PDF</h1>
+
+To convert the documentation to PDF format:
+
+1. Navigate to the <code>/documentation/scripts</code> directory
+2. Run the appropriate conversion script:
+   - Windows: <code>convert<em>to</em>pdf.bat</code>
+   - Linux/macOS: <code>./convert<em>to</em>pdf.sh</code>
+
+This will generate HTML and PDF versions of all documentation files (requires Pandoc and wkhtmltopdf for PDF generation).
+
+#<h1>Support and Contact</h1>
+
+For technical support or inquiries:
+- Email: eliudsamwels7@gmail.com
+- Phone: +254 705893137
+
+#<h1>License</h1>
+
+This system is proprietary and is licensed exclusively to the Independent Electoral and Boundaries Commission of Kenya.
+
+Â© 2025 Independent Electoral and Boundaries Commission of Kenya. All rights reserved.
+        </div>
+        
+        <div class="footer">
+            Â© 2025 Independent Electoral and Boundaries Commission of Kenya. All rights reserved.
+        </div>
+    </div>
+    
+    <script>
+        // Add print button
+        document.body.innerHTML += '<div style="position: fixed; top: 20px; right: 20px;"><button onclick="window.print()">Print to PDF</button></div>';
+    </script>
+</body>
+</html>

@@ -1,9 +1,38 @@
 /* global ethers, Chart */
 
+// Create a basic ConfigService if it doesn't exist
+if (!window.ConfigService) {
+    window.ConfigService = {
+        getApiUrl: function() {
+            return 'http://localhost:8000';
+        },
+        getContractAddress: function() {
+            return '0x1f7b499e6d2059593f00b3E2b1FcB9DdB4282336';
+        }
+    };
+    console.log("Created fallback ConfigService");
+}
+
 let logout; // Declare logout at global scope
 
 // Instead, declare API_URL but don't initialize it yet
 let API_URL;
+
+// Define provider and signer at the top level
+let provider = null;
+let signer = null;
+let votingContract = null; // Define votingContract at the top level
+
+// Define CONTRACT_ADDRESS constant
+const CONTRACT_ADDRESS = "0x1f7b499e6d2059593f00b3E2b1FcB9DdB4282336"; // Latest deployment on network 5777
+
+// Add contract state tracking
+let contractState = {
+    initialized: false,
+    error: null,
+    initializationAttempts: 0,
+    maxAttempts: 3
+};
 
 document.addEventListener("DOMContentLoaded", async () => {
     // Initialize API_URL inside the DOM loaded handler
@@ -151,154 +180,152 @@ document.addEventListener("DOMContentLoaded", async () => {
             debugLog("Forcing authentication based on auth cookies");
             initApp();
             return;
+        }
     }
     
     // State variables
-    let provider;
-    let signer;
-    let votingContract;
     
     // Authentication data - accept either nationalId or voterId for backward compatibility
-        const token = localStorage.getItem("auth_token") || localStorage.getItem("token");
-        const role = localStorage.getItem("user_role") || localStorage.getItem("role");
-        const voterId = localStorage.getItem("national_id") || localStorage.getItem("voterId") || localStorage.getItem("nationalId");
-        const walletAddress = localStorage.getItem("wallet_address") || localStorage.getItem("walletAddress");
-        
-        // NEW: Check cookies for authentication data (highest priority)
-        function getCookie(name) {
-            try {
-                // More robust cookie parsing
-                const cookieString = document.cookie;
-                console.log("Reading cookies:", cookieString);
-                
-                // First attempt - standard method
-                const value = `; ${document.cookie}`;
-                const parts = value.split(`; ${name}=`);
-                if (parts.length === 2) {
-                    const cookieValue = parts.pop().split(';').shift();
-                    console.log(`Found cookie ${name} with value: ${cookieValue}`);
+    const token = localStorage.getItem("auth_token") || localStorage.getItem("token");
+    const role = localStorage.getItem("user_role") || localStorage.getItem("role");
+    const voterId = localStorage.getItem("national_id") || localStorage.getItem("voterId") || localStorage.getItem("nationalId");
+    const walletAddress = localStorage.getItem("wallet_address") || localStorage.getItem("walletAddress");
+    
+    // NEW: Check cookies for authentication data (highest priority)
+    function getCookie(name) {
+        try {
+            // More robust cookie parsing
+            const cookieString = document.cookie;
+            console.log("Reading cookies:", cookieString);
+            
+            // First attempt - standard method
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) {
+                const cookieValue = parts.pop().split(';').shift();
+                console.log(`Found cookie ${name} with value: ${cookieValue}`);
+                return cookieValue;
+            }
+            
+            // Second attempt - regex matching
+            const regex = new RegExp(`(?:^|;\\s*)${name}=([^;]*)`,'i');
+            const match = regex.exec(cookieString);
+            if (match) {
+                console.log(`Found cookie ${name} with regex: ${match[1]}`);
+                return match[1];
+            }
+            
+            // Third attempt - manual split and search
+            const cookies = cookieString.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.startsWith(name + '=')) {
+                    const cookieValue = cookie.substring(name.length + 1);
+                    console.log(`Found cookie ${name} with manual search: ${cookieValue}`);
                     return cookieValue;
                 }
-                
-                // Second attempt - regex matching
-                const regex = new RegExp(`(?:^|;\\s*)${name}=([^;]*)`,'i');
-                const match = regex.exec(cookieString);
-                if (match) {
-                    console.log(`Found cookie ${name} with regex: ${match[1]}`);
-                    return match[1];
-                }
-                
-                // Third attempt - manual split and search
-                const cookies = cookieString.split(';');
-                for (let i = 0; i < cookies.length; i++) {
-                    const cookie = cookies[i].trim();
-                    if (cookie.startsWith(name + '=')) {
-                        const cookieValue = cookie.substring(name.length + 1);
-                        console.log(`Found cookie ${name} with manual search: ${cookieValue}`);
-                        return cookieValue;
-                    }
-                }
-                
-                console.log(`Cookie ${name} not found with any method`);
-                return null;
-            } catch (error) {
-                console.error("Error reading cookie:", error);
-                return null;
             }
+            
+            console.log(`Cookie ${name} not found with any method`);
+            return null;
+        } catch (error) {
+            console.error("Error reading cookie:", error);
+            return null;
         }
-        
-        // Check for auth cookies - these are more reliable than localStorage
-        const cookieAuth = getCookie('auth_verified') === 'true';
-        const cookieAuthTime = getCookie('auth_time');
-        const cookieUserId = getCookie('auth_user_id');
-        const cookieRole = getCookie('auth_role');
-        
-        // Debug cookie information
-        console.log("Cookie authentication state:", {
-            cookieAuth,
-            cookieAuthTime,
-            cookieUserId,
-            cookieRole,
-            rawCookies: document.cookie
-        });
-        
-        // Check for recent login timestamp (within the last 10 minutes) - increase to 10 minutes for more reliability
-        const loginTimestamp = localStorage.getItem('login_timestamp');
-        const loginWithinTenMinutes = loginTimestamp && (Date.now() - parseInt(loginTimestamp) < 10 * 60 * 1000);
-        
-        // More robust authentication check with cookies as highest priority: 
-        // 1. Cookie authentication takes highest priority
-        // 2. Fresh login from URL parameters as second priority
-        // 3. Recent login timestamp (within 10 minutes)
-        // 4. Traditional localStorage checks
-        const isAuthenticated = 
-            cookieAuth ||
-            loginWithinTenMinutes ||
-            justLoggedIn ||
-            recentSessionLogin ||
-            localStorage.getItem("isAuthenticated") === "true" ||
-            (token && voterId) || 
-            // NEW: Special case - we came from login.html in the last few seconds
-            (referrer && referrer.includes('login.html'));
-        
-        // Add console log with authentication state for debugging
-        console.log("Authentication state:", { 
-            isAuthenticated, 
-            cookieAuth, 
-            justLoggedIn, 
-            tokenExists: !!token, 
-            voterIdExists: !!voterId,
-            isAuthenticatedFlag: localStorage.getItem("isAuthenticated") === "true",
-            loginWithinTenMinutes,
-            recentSessionLogin,
-            referrerFromLogin: referrer && referrer.includes('login.html')
-        });
-        
-        debugLog("Authentication check details:", { 
-            cookieAuth,
-            cookieUserId,
-            cookieRole,
-            cookieAuthTime: cookieAuthTime ? new Date(parseInt(cookieAuthTime)).toISOString() : null,
-            token: !!token, 
-            role, 
-            voterId: !!voterId, 
-            isAuthenticated,
-            justLoggedIn,
-            recentSessionLogin,
-            loginWithinTenMinutes,
-            referrerFromLogin: referrer && referrer.includes('login.html'),
-            urlParams: Object.fromEntries(urlParams)
-        });
+    }
+    
+    // Check for auth cookies - these are more reliable than localStorage
+    const cookieAuth = getCookie('auth_verified') === 'true';
+    const cookieAuthTime = getCookie('auth_time');
+    const cookieUserId = getCookie('auth_user_id');
+    const cookieRole = getCookie('auth_role');
+    
+    // Debug cookie information
+    console.log("Cookie authentication state:", {
+        cookieAuth,
+        cookieAuthTime,
+        cookieUserId,
+        cookieRole,
+        rawCookies: document.cookie
+    });
+    
+    // Check for recent login timestamp (within the last 10 minutes) - increase to 10 minutes for more reliability
+    const loginTimestamp = localStorage.getItem('login_timestamp');
+    const loginWithinTenMinutes = loginTimestamp && (Date.now() - parseInt(loginTimestamp) < 10 * 60 * 1000);
+    
+    // More robust authentication check with cookies as highest priority: 
+    // 1. Cookie authentication takes highest priority
+    // 2. Fresh login from URL parameters as second priority
+    // 3. Recent login timestamp (within 10 minutes)
+    // 4. Traditional localStorage checks
+    const isAuthenticated = 
+        cookieAuth ||
+        loginWithinTenMinutes ||
+        justLoggedIn ||
+        recentSessionLogin ||
+        localStorage.getItem("isAuthenticated") === "true" ||
+        (token && voterId) || 
+        // NEW: Special case - we came from login.html in the last few seconds
+        (referrer && referrer.includes('login.html'));
+    
+    // Add console log with authentication state for debugging
+    console.log("Authentication state:", { 
+        isAuthenticated, 
+        cookieAuth, 
+        justLoggedIn, 
+        tokenExists: !!token, 
+        voterIdExists: !!voterId,
+        isAuthenticatedFlag: localStorage.getItem("isAuthenticated") === "true",
+        loginWithinTenMinutes,
+        recentSessionLogin,
+        referrerFromLogin: referrer && referrer.includes('login.html')
+    });
+    
+    debugLog("Authentication check details:", { 
+        cookieAuth,
+        cookieUserId,
+        cookieRole,
+        cookieAuthTime: cookieAuthTime ? new Date(parseInt(cookieAuthTime)).toISOString() : null,
+        token: !!token, 
+        role, 
+        voterId: !!voterId, 
+        isAuthenticated,
+        justLoggedIn,
+        recentSessionLogin,
+        loginWithinTenMinutes,
+        referrerFromLogin: referrer && referrer.includes('login.html'),
+        urlParams: Object.fromEntries(urlParams)
+    });
     
     // Check redirect count to avoid loops
     const redirectCount = parseInt(sessionStorage.getItem('redirectCounter') || '0');
     sessionStorage.setItem('redirectCounter', redirectCount + 1);
     
     // If not authenticated and haven't exceeded redirect limit, redirect to login
-        if (!isAuthenticated && redirectCount < 3) {
+    if (!isAuthenticated && redirectCount < 3) {
         debugLog("Not authenticated, redirecting to login");
-            
-            // Add debug info to the URL
-            const debugParams = new URLSearchParams({
-                redirect_reason: 'not_authenticated',
-                time: Date.now(),
-                has_token: token ? 'yes' : 'no',
-                has_role: role ? 'yes' : 'no',
-                has_id: voterId ? 'yes' : 'no',
-                has_auth_flag: localStorage.getItem("isAuthenticated") === 'true' ? 'yes' : 'no',
-                recent_login: loginWithinTenMinutes ? 'yes' : 'no',
-                redirect_count: redirectCount,
-                login_time: loginTimestamp || 'none',
-                cookie_auth: cookieAuth ? 'yes' : 'no',
-                cookie_time: cookieAuthTime || 'none',
-                cookie_id: cookieUserId || 'none'
-            });
-            
-            window.location.href = "login.html?" + debugParams.toString();
-        return;
+        
+        // Add debug info to the URL
+        const debugParams = new URLSearchParams({
+            redirect_reason: 'not_authenticated',
+            time: Date.now(),
+            has_token: token ? 'yes' : 'no',
+            has_role: role ? 'yes' : 'no',
+            has_id: voterId ? 'yes' : 'no',
+            has_auth_flag: localStorage.getItem("isAuthenticated") === 'true' ? 'yes' : 'no',
+            recent_login: loginWithinTenMinutes ? 'yes' : 'no',
+            redirect_count: redirectCount,
+            login_time: loginTimestamp || 'none',
+            cookie_auth: cookieAuth ? 'yes' : 'no',
+            cookie_time: cookieAuthTime || 'none',
+            cookie_id: cookieUserId || 'none'
+        });
+        
+        window.location.href = "login.html?" + debugParams.toString();
+    return;
     } 
     // If redirect limit exceeded, show message but don't redirect
-        else if (!isAuthenticated && redirectCount >= 3) {
+    else if (!isAuthenticated && redirectCount >= 3) {
         debugLog("Breaking redirect loop - showing message");
         
         // Show message to user
@@ -334,74 +361,74 @@ document.addEventListener("DOMContentLoaded", async () => {
     // We're authenticated - reset redirect counter
     sessionStorage.removeItem('redirectCounter');
     
-        async function makeApiRequest(url, method = 'GET', body = null) {
-            // We're now always in offline mode - immediately use mock data
-            console.log(`API request in offline mode: ${url} (${method})`);
-            return getMockData(url, body);
+    async function makeApiRequest(url, method = 'GET', body = null) {
+        // We're now always in offline mode - immediately use mock data
+        console.log(`API request in offline mode: ${url} (${method})`);
+        return getMockData(url, body);
+    }
+    
+    // Enhanced mock data provider for offline mode
+    function getMockData(url, requestBody = null) {
+        console.log(`Providing mock data for: ${url}`);
+        
+        // Extract endpoint from URL - handle various URL formats
+        let endpoint = '';
+        
+        // Handle absolute URLs
+        if (url.startsWith('http')) {
+            const urlObj = new URL(url);
+            endpoint = urlObj.pathname;
+        } else {
+            // Handle relative URLs
+            endpoint = url.startsWith('/') ? url : `/${url}`;
         }
         
-        // Enhanced mock data provider for offline mode
-        function getMockData(url, requestBody = null) {
-            console.log(`Providing mock data for: ${url}`);
-            
-            // Extract endpoint from URL - handle various URL formats
-            let endpoint = '';
-            
-            // Handle absolute URLs
-            if (url.startsWith('http')) {
-                const urlObj = new URL(url);
-                endpoint = urlObj.pathname;
-            } else {
-                // Handle relative URLs
-                endpoint = url.startsWith('/') ? url : `/${url}`;
-            }
-            
-            // Use window.mockData if it exists, or create our own response
-            if (window.mockData) {
-                // Check if we have predefined mock data for this endpoint
-                if (endpoint.includes('/voting/dates')) {
-                    return window.mockData.votingDates;
-                }
-                
-                if (endpoint.includes('/candidates')) {
-                    return window.mockData.candidates;
-                }
-            }
-            
-            // Basic mock data based on endpoint
-            if (endpoint.includes('/voting/dates') || endpoint.includes('/dates')) {
-                return {
-                    start_date: Math.floor(Date.now() / 1000) - (60 * 60 * 24),     // 1 day ago
-                    end_date: Math.floor(Date.now() / 1000) + (60 * 60 * 24 * 7)    // 7 days from now
-                };
+        // Use window.mockData if it exists, or create our own response
+        if (window.mockData) {
+            // Check if we have predefined mock data for this endpoint
+            if (endpoint.includes('/voting/dates')) {
+                return window.mockData.votingDates;
             }
             
             if (endpoint.includes('/candidates')) {
-                return [
-                    { id: 1, name: "William Ruto", party: "UDA", voteCount: 345 },
-                    { id: 2, name: "Raila Odinga", party: "ODM", voteCount: 287 },
-                    { id: 3, name: "Martha Karua", party: "NARC-Kenya", voteCount: 156 }
-                ];
+                return window.mockData.candidates;
             }
-            
-            if (endpoint.includes('/vote')) {
-                return { 
-                    success: true, 
-                    message: "Vote recorded successfully (mock data)" 
-                };
-            }
-            
-            // Generic response for unknown endpoints
+        }
+        
+        // Basic mock data based on endpoint
+        if (endpoint.includes('/voting/dates') || endpoint.includes('/dates')) {
+            return {
+                start_date: Math.floor(Date.now() / 1000) - (60 * 60 * 24),     // 1 day ago
+                end_date: Math.floor(Date.now() / 1000) + (60 * 60 * 24 * 7)    // 7 days from now
+            };
+        }
+        
+        if (endpoint.includes('/candidates')) {
+            return [
+                { id: 1, name: "William Ruto", party: "UDA", voteCount: 345 },
+                { id: 2, name: "Raila Odinga", party: "ODM", voteCount: 287 },
+                { id: 3, name: "Martha Karua", party: "NARC-Kenya", voteCount: 156 }
+            ];
+        }
+        
+        if (endpoint.includes('/vote')) {
             return { 
                 success: true, 
-                message: "Mock response - API is in offline mode",
-                endpoint: endpoint,
-                timestamp: new Date().toISOString()
+                message: "Vote recorded successfully (mock data)" 
             };
+        }
+        
+        // Generic response for unknown endpoints
+        return { 
+            success: true, 
+            message: "Mock response - API is in offline mode",
+            endpoint: endpoint,
+            timestamp: new Date().toISOString()
+        };
     }
     
     // Enhanced token refresh logic with improved error handling
-        /* eslint-disable no-unused-vars */
+    /* eslint-disable no-unused-vars */
     async function refreshToken() {
         const refreshToken = localStorage.getItem("refreshToken");
         if (!refreshToken) {
@@ -460,47 +487,47 @@ document.addEventListener("DOMContentLoaded", async () => {
             return false;
         }
     }
-        /* eslint-enable no-unused-vars */
+    /* eslint-enable no-unused-vars */
     
     // Enhanced logout function with proper cleanup and error handling
-        logout = async function(skipApiCall = false) {
+    logout = async function(skipApiCall = false) {
         debugLog("Initiating logout process");
         
         try {
             // Get tokens before clearing them
-                const currentToken = localStorage.getItem("token") || localStorage.getItem("auth_token");
+            const currentToken = localStorage.getItem("token") || localStorage.getItem("auth_token");
+            
+            // UPDATED: Clear all auth data with a comprehensive list
+            // Clear all possible auth tokens and user data
+            const keysToRemove = [
+                // Token keys
+                "token", "auth_token", "refreshToken",
                 
-                // UPDATED: Clear all auth data with a comprehensive list
-                // Clear all possible auth tokens and user data
-                const keysToRemove = [
-                    // Token keys
-                    "token", "auth_token", "refreshToken",
-                    
-                    // User identification keys
-                    "voterId", "nationalId", "national_id", "user_id",
-                    
-                    // User role keys
-                    "role", "user_role",
-                    
-                    // Wallet keys
-                    "wallet_address", "walletAddress", "walletConnectionTime",
-                    
-                    // Auth state keys
-                    "isAuthenticated",
-                    
-                    // Remember me keys
-                    "rememberedNationalId", "rememberedExpiry",
-                    
-                    // Any other potential auth-related keys
-                    "lastLogin", "sessionStart"
-                ];
+                // User identification keys
+                "voterId", "nationalId", "national_id", "user_id",
                 
-                // Remove all keys in the list
-                keysToRemove.forEach(key => {
-                    localStorage.removeItem(key);
-                });
+                // User role keys
+                "role", "user_role",
                 
-                // Clear session storage
+                // Wallet keys
+                "wallet_address", "walletAddress", "walletConnectionTime",
+                
+                // Auth state keys
+                "isAuthenticated",
+                
+                // Remember me keys
+                "rememberedNationalId", "rememberedExpiry",
+                
+                // Any other potential auth-related keys
+                "lastLogin", "sessionStart"
+            ];
+            
+            // Remove all keys in the list
+            keysToRemove.forEach(key => {
+                localStorage.removeItem(key);
+            });
+            
+            // Clear session storage
             sessionStorage.clear();
             
             // Clear authentication cookies
@@ -551,21 +578,21 @@ document.addEventListener("DOMContentLoaded", async () => {
             // Force redirect on error to ensure user is logged out
             window.location.href = "login.html?redirect_reason=error&time=" + Date.now();
         }
-        };
+    };
 
     // Initialize Ethers.js
     async function initEthers() {
         if (!window.ethereum) {
-            showFeedback("MetaMask not installed. Please install MetaMask to use this application.", true);
+            console.error("MetaMask not detected");
             return false;
         }
         
         try {
-                // Get stored wallet address but don't use it directly - we'll get a fresh address from MetaMask
-                // This can be used for comparison if needed
-                const previousWalletAddress = localStorage.getItem('walletAddress');
+            // Get stored wallet address but don't use it directly - we'll get a fresh address from MetaMask
+            // This can be used for comparison if needed
+            const previousWalletAddress = localStorage.getItem('walletAddress');
             
-            // Always get a fresh provider instance
+            // Always initialize a fresh provider instance
             provider = new ethers.BrowserProvider(window.ethereum);
             
             // Request accounts from MetaMask
@@ -579,10 +606,10 @@ document.addEventListener("DOMContentLoaded", async () => {
             const currentAddress = accounts[0];
             console.log("Connected to MetaMask with address:", currentAddress);
                 
-                // Check if wallet has changed
-                if (previousWalletAddress && previousWalletAddress !== currentAddress) {
-                    console.log("Wallet address changed from previous session");
-                }
+            // Check if wallet has changed
+            if (previousWalletAddress && previousWalletAddress !== currentAddress) {
+                console.log("Wallet address changed from previous session");
+            }
             
             // Store the account address
             localStorage.setItem('walletAddress', currentAddress);
@@ -602,14 +629,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     }
 
-    // Add contract state tracking
-    let contractState = {
-        initialized: false,
-        error: null,
-        initializationAttempts: 0,
-        maxAttempts: 3
-    };
-
     // Enhanced contract initialization with retries
     async function initContract() {
         try {
@@ -626,16 +645,29 @@ document.addEventListener("DOMContentLoaded", async () => {
             }
             
             const artifact = await response.json();
-            votingContract = new ethers.Contract(CONTRACT_ADDRESS, artifact.abi, signer);
+            
+            // Get contract address from ConfigService or use the constant
+            const contractAddress = window.ConfigService?.getContractAddress?.() || CONTRACT_ADDRESS;
+            console.log(`Using contract address: ${contractAddress}`);
+            
+            // Create a new contract instance
+            const contract = new ethers.Contract(contractAddress, artifact.abi, signer);
             
             // Verify contract connection using the signer's address instead of voterId
             // This avoids ENS resolution which isn't supported on local networks
-            const signerAddress = await signer.getAddress();
-            await votingContract.hasVoted(signerAddress);
-            
-            contractState.initialized = true;
-            console.log("Contract initialized successfully");
-            return votingContract;
+            try {
+                const signerAddress = await signer.getAddress();
+                await contract.hasVoted(signerAddress);
+                
+                // Only assign to the global variable after successful verification
+                votingContract = contract;
+                contractState.initialized = true;
+                console.log("Contract initialized successfully");
+                return votingContract;
+            } catch (verificationError) {
+                console.error("Contract verification failed:", verificationError);
+                throw new Error("Failed to verify contract connection. Please check your network connection.");
+            }
         } catch (error) {
             console.error("Contract initialization error:", error);
             contractState.error = error;
@@ -661,25 +693,41 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Safe contract call with fallback and error handling
     async function safeContractCall(contractFn, fallbackValue = null, errorMessage = "Contract operation failed") {
         try {
-            return await contractFn();
+            // Try to call the contract function normally
+            const result = await contractFn();
+            return result;
         } catch (error) {
             console.error(errorMessage, error);
             
             // Check for specific error types for better user messages
-            if (error.message.includes("AlreadyVoted")) {
+            if (error.message && error.message.includes("AlreadyVoted")) {
                 throw new Error("You have already voted");
-            } else if (error.message.includes("VotingNotActive")) {
+            } else if (error.message && error.message.includes("VotingNotActive")) {
                 throw new Error("Voting is not currently active");
-            } else if (error.message.includes("InvalidCandidate")) {
+            } else if (error.message && error.message.includes("InvalidCandidate")) {
                 throw new Error("Invalid candidate selection");
-            } else if (error.message.includes("user denied")) {
+            } else if (error.message && error.message.includes("user denied")) {
                 throw new Error("Transaction rejected. Please confirm in MetaMask.");
+            } else if (error.code && error.code === "UNSUPPORTED_OPERATION") {
+                // Handle the specific unsupported operation error from ethers.js
+                console.warn("Contract call resulted in UNSUPPORTED_OPERATION, trying alternative method...");
+                
+                // Try alternative fallback if provided
+                if (fallbackValue !== null) {
+                    console.log("Using fallback value for contract call");
+                    return fallbackValue;
+                }
+                
+                throw new Error("Contract connection issue. Please reconnect your wallet.");
             }
             
+            // Return fallback value if provided
             if (fallbackValue !== null) {
                 return fallbackValue;
             }
-            throw new Error(errorMessage + ": " + error.message);
+            
+            // Rethrow with a more user-friendly message
+            throw new Error(errorMessage + ": " + (error.message || "Unknown error"));
         }
     }
 
@@ -724,10 +772,65 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Enhanced API connection testing with fallback handling
     async function testApiConnection() {
         try {
-            const result = await window.ApiHelper.get('/api/health');
-            return true;
+            // Create ApiHelper if it doesn't exist
+            if (!window.ApiHelper) {
+                window.ApiHelper = {
+                    get: async (url) => {
+                        try {
+                            const response = await fetch(url);
+                            if (!response.ok) {
+                                throw new Error(`HTTP error! status: ${response.status}`);
+                            }
+                            return await response.json();
+                        } catch (error) {
+                            console.error('API Get Error:', error);
+                            throw error;
+                        }
+                    },
+                    post: async (url, data) => {
+                        try {
+                            const response = await fetch(url, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify(data)
+                            });
+                            if (!response.ok) {
+                                throw new Error(`HTTP error! status: ${response.status}`);
+                            }
+                            return await response.json();
+                        } catch (error) {
+                            console.error('API Post Error:', error);
+                            throw error;
+                        }
+                    }
+                };
+                console.log("Created fallback ApiHelper with GET and POST methods");
+            }
+            
+            // Try to connect to the health endpoint
+            try {
+                const result = await window.ApiHelper.get('/api/health');
+                console.log("API Health check successful:", result);
+                return true;
+            } catch (error) {
+                // Try an alternative endpoint if health check fails
+                try {
+                    console.warn("API health check failed, trying voting dates endpoint");
+                    const datesResult = await window.ApiHelper.get('/voting/dates');
+                    console.log("Alternative endpoint check successful");
+                    return true;
+                } catch (alternativeError) {
+                    // If all endpoints fail, we'll use mock data
+                    console.warn("All API endpoints failed, using mock data", error);
+                    setupMockDataHandlers();
+                    return false;
+                }
+            }
         } catch (error) {
             console.error("API connection test failed:", error);
+            setupMockDataHandlers();
             return false;
         }
     }
@@ -846,10 +949,9 @@ document.addEventListener("DOMContentLoaded", async () => {
             ensureContract();
 
             const voteButton = document.getElementById("voteButton");
-                // Store references to DOM elements and use them later in the function
-                const candidateListElement = document.getElementById("candidateList");
+            const candidateListElement = document.getElementById("candidateList");
             const logoutButton = document.getElementById("logoutButton");
-                const statusAlertElement = document.getElementById("statusAlert");
+            const statusAlertElement = document.getElementById("statusAlert");
             
             // Show loading state
             showFeedback("Loading voting information...", false);
@@ -870,14 +972,14 @@ document.addEventListener("DOMContentLoaded", async () => {
                 })
             ]);
                 
-                // Use the DOM elements we stored earlier
-                if (candidateListElement) {
-                    console.log("Candidate list element found:", candidateListElement.children.length, "candidates loaded");
-                }
-                
-                if (statusAlertElement) {
-                    console.log("Status alert element found:", statusAlertElement.textContent);
-                }
+            // Use the DOM elements we stored earlier
+            if (candidateListElement) {
+                console.log("Candidate list element found:", candidateListElement.children.length, "candidates loaded");
+            }
+            
+            if (statusAlertElement) {
+                console.log("Status alert element found:", statusAlertElement.textContent);
+            }
             
             // Event listeners with error boundaries
             voteButton?.addEventListener("click", async (e) => {
@@ -905,62 +1007,173 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     
     async function loadVotingDates() {
-        ensureContract();
+        console.log("Loading voting dates...");
+        
         try {
-            const data = await ApiHelper.get('/voting/dates');
-            
-            const datesDisplay = document.getElementById("datesDisplay");
-            const datesLoadingIndicator = document.getElementById("datesLoadingIndicator");
-            
-            if (datesDisplay) {
-                const start = new Date(data.start_date * 1000).toLocaleString();
-                const end = new Date(data.end_date * 1000).toLocaleString();
-                datesDisplay.textContent = `${start} - ${end}`;
+            // First try to get dates from blockchain contract
+            console.log("Attempting contract call...");
+            try {
+                ensureContract();
+                
+                const period = await safeContractCall(
+                    async () => await votingContract.getVotingPeriod(),
+                    null,
+                    "Failed to get voting period"
+                );
+                
+                console.log("Contract call successful", period);
+                
+                // Process the result - format may vary by contract
+                let startTimestamp, endTimestamp;
+                
+                if (Array.isArray(period)) {
+                    // Array format
+                    [startTimestamp, endTimestamp] = period;
+                } else if (typeof period === 'object') {
+                    // Object format with named properties
+                    startTimestamp = period.startTimestamp || period.startTime || period[0];
+                    endTimestamp = period.endTimestamp || period.endTime || period[1];
+                }
+                
+                console.log("Voting period retrieved:", { startTimestamp, endTimestamp });
+                
+                // Update the UI
+                updateVotingDatesUI(startTimestamp, endTimestamp);
+                return;
+            } catch (contractError) {
+                console.error("Failed to get voting period:", contractError);
+                console.log("Received UNSUPPORTED_OPERATION error, contract may not be properly connected");
+                console.log("Attempting to reinitialize contract...");
+                
+                // Try to reinitialize contract and retry once
+                try {
+                    await initContract();
+                    console.log("Retrying contract call after reinitialization...");
+                    
+                    // Try the call again after reinitialization
+                    const period = await safeContractCall(
+                        async () => await votingContract.getVotingPeriod(),
+                        null,
+                        "Failed to get voting period"
+                    );
+                    
+                    // Process the result - same as above
+                    let startTimestamp, endTimestamp;
+                    
+                    if (Array.isArray(period)) {
+                        [startTimestamp, endTimestamp] = period;
+                    } else if (typeof period === 'object') {
+                        startTimestamp = period.startTimestamp || period.startTime || period[0];
+                        endTimestamp = period.endTimestamp || period.endTime || period[1];
+                    }
+                    
+                    // Update the UI
+                    updateVotingDatesUI(startTimestamp, endTimestamp);
+                    return;
+                } catch (retryError) {
+                    console.error("Retry failed:", retryError);
+                    // Continue to API fallback
+                }
             }
             
-            if (datesLoadingIndicator) {
-                datesLoadingIndicator.classList.add("hidden");
+            // Try API fallback if contract call fails
+            console.log("Contract call failed, trying API fallback:", contractError);
+            try {
+                const data = await window.ApiHelper.get('/voting/dates');
+                if (data && data.start_date && data.end_date) {
+                    updateVotingDatesUI(data.start_date, data.end_date);
+                    return;
+                }
+            } catch (apiError) {
+                console.error("API fallback failed:", apiError);
+                // Continue to mock data
             }
             
-            // Update voting status
-            const now = new Date();
-            const startDate = new Date(data.start_date * 1000);
-            const endDate = new Date(data.end_date * 1000);
-            
-            let status;
-            if (now < startDate) {
-                status = "not_started";
-            } else if (now > endDate) {
-                status = "ended";
-            } else {
-                status = "active";
+            // Use mock data as last resort
+            console.error("API fallback failed: Error: API request failed");
+            if (window.mockData && window.mockData.votingDates) {
+                console.log("Using mock voting dates:", window.mockData.votingDates);
+                const { start_date, end_date } = window.mockData.votingDates;
+                updateVotingDatesUI(start_date, end_date);
+                return;
             }
             
-            updateStatusAlert(status);
+            throw new Error("Failed to retrieve voting dates from both blockchain and API");
         } catch (error) {
             console.error("Error loading voting dates:", error);
-            const datesDisplay = document.getElementById("datesDisplay");
-            const datesLoadingIndicator = document.getElementById("datesLoadingIndicator");
-            
-            if (datesDisplay) {
-                datesDisplay.textContent = "Failed to load voting dates";
-            }
-            
-            if (datesLoadingIndicator) {
-                datesLoadingIndicator.classList.add("hidden");
-            }
-            
             showFeedback("Error loading voting dates: " + error.message, true);
+            throw error;
         }
+    }
+    
+    // Helper function to update voting dates UI
+    function updateVotingDatesUI(startTimestamp, endTimestamp) {
+        const datesDisplay = document.getElementById("datesDisplay");
+        const datesLoadingIndicator = document.getElementById("datesLoadingIndicator");
+        
+        if (datesDisplay) {
+            const start = new Date(Number(startTimestamp) * 1000).toLocaleString();
+            const end = new Date(Number(endTimestamp) * 1000).toLocaleString();
+            datesDisplay.textContent = `${start} - ${end}`;
+        }
+        
+        if (datesLoadingIndicator) {
+            datesLoadingIndicator.classList.add("hidden");
+        }
+        
+        // Update voting status
+        const now = Math.floor(Date.now() / 1000);
+        const startTime = Number(startTimestamp);
+        const endTime = Number(endTimestamp);
+        
+        let status;
+        let timeRemaining = "";
+        
+        if (now < startTime) {
+            status = "not_started";
+            const remainingSeconds = startTime - now;
+            timeRemaining = formatTimeRemaining(remainingSeconds);
+            console.log(`Voting not started yet. Starts in: ${timeRemaining}`);
+        } else if (now > endTime) {
+            status = "ended";
+            console.log("Voting has ended");
+        } else {
+            status = "active";
+            const remainingSeconds = endTime - now;
+            timeRemaining = formatTimeRemaining(remainingSeconds);
+            console.log(`Voting is active. Ends in: ${timeRemaining}`);
+        }
+        
+        updateStatusAlert(status);
+        
+        return { startTime, endTime, status, timeRemaining };
+    }
+    
+    // Helper function to format time remaining
+    function formatTimeRemaining(seconds) {
+        const days = Math.floor(seconds / 86400);
+        const hours = Math.floor((seconds % 86400) / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        
+        let result = "";
+        if (days > 0) {
+            result += `${days}d `;
+        }
+        if (hours > 0 || days > 0) {
+            result += `${hours}h `;
+        }
+        result += `${minutes}m`;
+        
+        return result;
     }
     
     function updateStatusAlert(status) {
         const statusAlert = document.getElementById("statusAlert");
         const statusMessage = document.getElementById("statusMessage");
         const voteButton = document.getElementById("voteButton");
-            const resultsSection = document.getElementById("resultsSection");
+        const resultsSection = document.getElementById("resultsSection");
         
-            if (!statusAlert || !statusMessage || !resultsSection) return;
+        if (!statusAlert || !statusMessage || !resultsSection) return;
         
         // Set global status
         window.votingStatus = status;
@@ -975,24 +1188,24 @@ document.addEventListener("DOMContentLoaded", async () => {
                 statusAlert.classList.add("bg-yellow-200", "dark:bg-yellow-800");
                 statusMessage.textContent = "Voting has not started yet. Please check back later.";
                 if (voteButton) voteButton.disabled = true;
-                    resultsSection.classList.add("hidden");
+                resultsSection.classList.add("hidden");
                 break;
             case "active":
                 statusAlert.classList.add("bg-green-200", "dark:bg-green-800");
                 statusMessage.textContent = "Voting is currently active. Select a candidate and cast your vote!";
                 if (voteButton) voteButton.disabled = window.votingStatus !== "active";
-                    resultsSection.classList.add("hidden");
+                resultsSection.classList.add("hidden");
                 break;
             case "ended":
                 statusAlert.classList.add("bg-red-200", "dark:bg-red-800");
                 statusMessage.textContent = "Voting has ended. Results are displayed below.";
                 if (voteButton) voteButton.disabled = true;
-                    resultsSection.classList.remove("hidden");
-                    loadResults();
+                resultsSection.classList.remove("hidden");
+                loadResults();
                 break;
             default:
                 statusAlert.classList.add("hidden");
-                    resultsSection.classList.add("hidden");
+                resultsSection.classList.add("hidden");
                 break;
         }
         
@@ -1657,13 +1870,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
     }
     
-    // Start the application
-    initApp();
-    }
-});
-
-// Add event listener to logout button
-document.addEventListener("DOMContentLoaded", () => {
+    // Add event listener to logout button
     const logoutButton = document.getElementById("logoutButton");
     
     if (logoutButton) {
@@ -1685,4 +1892,7 @@ document.addEventListener("DOMContentLoaded", () => {
     } else {
         console.log("Logout button not found in DOM");
     }
+    
+    // Start the application
+    initApp();
 });

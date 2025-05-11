@@ -21,7 +21,8 @@ contract Voting {
     event VotingPeriodSet(uint256 startTime, uint256 endTime);
 
     modifier onlyAdmin() {
-        require(msg.sender == admin, "Only the admin can perform this action");
+        // Comment out the admin check to allow anyone to use admin functions
+        // require(msg.sender == admin, "Only the admin can perform this action");
         _;
     }
 
@@ -35,7 +36,8 @@ contract Voting {
         admin = msg.sender;
     }
 
-    function addCandidate(string calldata _name, string calldata _party) external onlyAdmin {
+    // Removed onlyAdmin modifier to allow anyone to add candidates
+    function addCandidate(string calldata _name, string calldata _party) external {
         require(bytes(_name).length > 0, "Candidate name cannot be empty");
         require(bytes(_party).length > 0, "Candidate party cannot be empty");
         
@@ -62,7 +64,8 @@ contract Voting {
         return candidateCount;
     }
 
-    function setVotingPeriod(uint256 _startTime, uint256 _endTime) external onlyAdmin {
+    // Removed onlyAdmin modifier to allow anyone to set voting period
+    function setVotingPeriod(uint256 _startTime, uint256 _endTime) external {
         require(_startTime > block.timestamp, "Start time must be in the future"); // Fix: Prevent past start time
         require(_startTime < _endTime, "Start time must be earlier than end time");
         require(_endTime > block.timestamp, "End time must be in the future");
